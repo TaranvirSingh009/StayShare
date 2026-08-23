@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hotelier Dashboard — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section">
+  <div class="container">
+    <div class="dashboard-shell">
+      <aside class="dash-sidebar">
+        <div class="dash-sidebar-header">
+          <div class="dash-name" id="side-name">—</div>
+          <div class="dash-email" id="side-email">—</div>
+        </div>
+        <nav class="dash-nav">
+          <a href="#" data-panel="overview" class="active">📊 Overview</a>
+          <a href="#" data-panel="properties">🏨 My Properties</a>
+          <a href="#" data-panel="add-property">➕ Add Property</a>
+          <a href="#" data-panel="bookings">📖 Bookings</a>
+          <a href="#" data-panel="profile">⚙ Profile</a>
+          <button class="dash-logout" id="logout-btn">↪ Log out</button>
+        </nav>
+      </aside>
+
+      <main class="dash-main">
+        <h1>Hotelier Dashboard</h1>
+        <p class="text-muted" style="margin-bottom:24px;" id="header-sub">Manage your properties and bookings.</p>
+
+        <div class="dash-panel active" id="panel-overview">
+          <div class="stat-grid" style="margin-bottom:10px;">
+            <div class="stat-card"><div class="stat-label">Total Properties</div><div class="stat-value" id="stat-properties">0</div></div>
+            <div class="stat-card"><div class="stat-label">Total Rooms</div><div class="stat-value" id="stat-rooms">0</div></div>
+            <div class="stat-card"><div class="stat-label">Active Bookings</div><div class="stat-value" id="stat-bookings">0</div></div>
+            <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-value" id="stat-revenue">₹0</div></div>
+            <div class="stat-card"><div class="stat-label">Pending Approval</div><div class="stat-value" id="stat-pending">0</div></div>
+          </div>
+        </div>
+
+        <div class="dash-panel" id="panel-properties">
+          <div id="properties-list" class="dash-list"></div>
+        </div>
+
+        <div class="dash-panel" id="panel-add-property">
+          <div class="alert alert-info" id="pending-notice" style="display:none;">
+            New and edited properties go to <strong>Pending Approval</strong> and won't appear publicly until a SuperAdmin approves them.
+          </div>
+          <div class="form-card">
+            <h3 id="form-title" style="font-size:18px; margin-bottom:18px;">Add a new property</h3>
+            <div class="form-group">
+              <label>Property name</label>
+              <input class="form-control" id="p-name" placeholder="e.g. The Grand Hotel">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>City</label>
+                <input class="form-control" id="p-city" placeholder="e.g. Delhi">
+              </div>
+              <div class="form-group">
+                <label>Address</label>
+                <input class="form-control" id="p-address" placeholder="Street, area">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea class="form-control" id="p-description" placeholder="Describe the property..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>Amenities</label>
+              <div class="checkbox-group">
+                ${["WiFi","Parking","AC","Pool","Breakfast","Gym","Bar","Beach Access","Coworking Space","Pet Friendly"].map(a =>
+                  `<label class="checkbox-item"><input type="checkbox" value="${a}" class="amenity-check"> ${a}</label>`).join("")}
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Rooms</label>
+              <div id="rooms-editor"></div>
+              <button class="btn btn-sm btn-outline" id="add-room-row" type="button">+ Add Room Type</button>
+            </div>
+
+            <div class="form-error" id="property-error"></div>
+            <div style="display:flex; gap:10px; margin-top:8px;">
+              <button class="btn btn-primary btn-lg" id="submit-property-btn">Submit Property</button>
+              <button class="btn btn-ghost" id="cancel-edit-btn" style="display:none;" type="button">Cancel edit</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dash-panel" id="panel-bookings">
+          <div class="dash-list" id="bookings-list"></div>
+        </div>
+
+        <div class="dash-panel" id="panel-profile">
+          <div class="form-card" style="max-width:480px;">
+            <div class="form-group">
+              <label>Full name</label>
+              <input class="form-control" id="profile-name">
+            </div>
+            <div class="form-group">
+              <label>Company</label>
+              <input class="form-control" id="profile-company">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input class="form-control" id="profile-email" disabled>
+            </div>
+            <div class="form-group">
+              <label>New password (optional)</label>
+              <input class="form-control" type="password" id="profile-password" placeholder="Leave blank to keep current password">
+            </div>
+            <button class="btn btn-primary" id="save-profile-btn">Save changes</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("");
+  Components.renderFooter();
+  const user = Auth.requireRole("hotelier");
+  let roomRowCount = 0;
+  let editingPropertyId = null;
+
+  if (user) {
+    document.getElementById("side-name").textContent = user.name;
+    document.getElementById("side-email").textContent = user.email;
+    document.getElementById("header-sub").textContent = user.company ? user.company : "Manage your properties and bookings.";
+    document.getElementById("profile-name").value = user.name;
+    document.getElementById("profile-company").value = user.company || "";
+    document.getElementById("profile-email").value = user.email;
+
+    setupTabs();
+    addRoomRow();
+    renderOverview();
+    renderProperties();
+    renderBookings();
+
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      Auth.logout();
+      location.href = "../index.html";
+    });
+    document.getElementById("add-room-row").addEventListener("click", () => addRoomRow());
+    document.getElementById("submit-property-btn").addEventListener("click", submitProperty);
+    document.getElementById("cancel-edit-btn").addEventListener("click", resetForm);
+
+    document.getElementById("save-profile-btn").addEventListener("click", () => {
+      const users = Store.getUsers();
+      const u = users.find(x => x.id === user.id);
+      u.name = document.getElementById("profile-name").value.trim() || u.name;
+      u.company = document.getElementById("profile-company").value.trim();
+      const newPass = document.getElementById("profile-password").value;
+      if (newPass) u.password = newPass;
+      Store.setUsers(users);
+      document.getElementById("profile-password").value = "";
+      Components.toast("Profile updated", "success");
+      document.getElementById("side-name").textContent = u.name;
+    });
+  }
+
+  function setupTabs() {
+    const links = document.querySelectorAll(".dash-nav a[data-panel]");
+    links.forEach(link => {
+      link.addEventListener("click", e => {
+        e.preventDefault();
+        links.forEach(l => l.classList.remove("active"));
+        link.classList.add("active");
+        document.querySelectorAll(".dash-panel").forEach(p => p.classList.remove("active"));
+        document.getElementById("panel-" + link.dataset.panel).classList.add("active");
+        if (link.dataset.panel === "add-property") document.getElementById("pending-notice").style.display = "flex";
+      });
+    });
+  }
+
+  function addRoomRow(room) {
+    roomRowCount++;
+    const id = "room-row-" + roomRowCount;
+    const div = document.createElement("div");
+    div.className = "form-row";
+    div.id = id;
+    div.style.marginBottom = "10px";
+    div.innerHTML = `
+      <input class="form-control room-type" placeholder="Room type e.g. Deluxe" value="${room ? escapeHtml(room.type) : ''}">
+      <input class="form-control room-price" type="number" placeholder="Price/night" value="${room ? room.price : ''}">
+      <input class="form-control room-capacity" type="number" placeholder="Capacity" value="${room ? room.capacity : ''}" style="max-width:110px;">
+      <button type="button" class="btn btn-ghost btn-icon" onclick="document.getElementById('${id}').remove()" style="color:var(--danger);">✕</button>
+    `;
+    div.style.display = "grid";
+    div.style.gridTemplateColumns = "2fr 1fr 1fr auto";
+    div.style.gap = "8px";
+    document.getElementById("rooms-editor").appendChild(div);
+  }
+
+  function resetForm() {
+    editingPropertyId = null;
+    document.getElementById("form-title").textContent = "Add a new property";
+    document.getElementById("submit-property-btn").textContent = "Submit Property";
+    document.getElementById("cancel-edit-btn").style.display = "none";
+    document.getElementById("p-name").value = "";
+    document.getElementById("p-city").value = "";
+    document.getElementById("p-address").value = "";
+    document.getElementById("p-description").value = "";
+    document.querySelectorAll(".amenity-check").forEach(c => c.checked = false);
+    document.getElementById("rooms-editor").innerHTML = "";
+    roomRowCount = 0;
+    addRoomRow();
+  }
+
+  function submitProperty() {
+    const errorEl = document.getElementById("property-error");
+    errorEl.classList.remove("show");
+
+    const name = document.getElementById("p-name").value.trim();
+    const city = document.getElementById("p-city").value.trim();
+    const description = document.getElementById("p-description").value.trim();
+    const address = document.getElementById("p-address").value.trim();
+    const amenities = [...document.querySelectorAll(".amenity-check:checked")].map(c => c.value);
+
+    const roomRows = [...document.getElementById("rooms-editor").children];
+    const rooms = roomRows.map((row, i) => {
+      const type = row.querySelector(".room-type").value.trim();
+      const price = parseFloat(row.querySelector(".room-price").value);
+      const capacity = parseInt(row.querySelector(".room-capacity").value, 10);
+      if (!type || !price || !capacity) return null;
+      return { id: Store.uid("room"), type, price, capacity, available: true };
+    }).filter(Boolean);
+
+    if (!name || !city || !description || rooms.length === 0) {
+      errorEl.textContent = "Please fill in the property name, city, description, and at least one complete room type.";
+      errorEl.classList.add("show");
+      return;
+    }
+
+    const properties = Store.getProperties();
+
+    if (editingPropertyId) {
+      const p = properties.find(x => x.id === editingPropertyId);
+      Object.assign(p, { name, city, address, description, amenities, rooms, status: "pending" });
+      Store.setProperties(properties);
+      Components.toast("Property updated — resubmitted for approval.", "success");
+    } else {
+      properties.push({
+        id: Store.uid("property"),
+        ownerId: user.id,
+        name, city, address, description, amenities, rooms,
+        rating: 4.0,
+        status: "pending",
+        createdAt: Date.now()
+      });
+      Store.setProperties(properties);
+      Components.toast("Property submitted for approval!", "success");
+    }
+
+    resetForm();
+    renderOverview();
+    renderProperties();
+    document.querySelector('.dash-nav a[data-panel="properties"]').click();
+  }
+
+  function renderOverview() {
+    const properties = Store.getProperties().filter(p => p.ownerId === user.id);
+    const bookings = Store.getBookings().filter(b => properties.some(p => p.id === b.propertyId));
+
+    document.getElementById("stat-properties").textContent = properties.length;
+    document.getElementById("stat-rooms").textContent = properties.reduce((s, p) => s + p.rooms.length, 0);
+    document.getElementById("stat-bookings").textContent = bookings.filter(b => b.status === "upcoming" || b.status === "active").length;
+    document.getElementById("stat-revenue").textContent = "₹" + bookings.reduce((s, b) => s + b.totalPrice, 0).toLocaleString("en-IN");
+    document.getElementById("stat-pending").textContent = properties.filter(p => p.status === "pending").length;
+  }
+
+  function renderProperties() {
+    const properties = Store.getProperties().filter(p => p.ownerId === user.id).sort((a,b) => b.createdAt - a.createdAt);
+    const list = document.getElementById("properties-list");
+    if (properties.length === 0) {
+      list.innerHTML = Components.emptyState("You haven't added any properties yet", "Use “Add Property” to submit your first listing.");
+      return;
+    }
+    list.innerHTML = properties.map(p => `
+      <div class="card-flat" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+        <div style="display:flex; gap:14px; align-items:center;">
+          <div class="booking-card-img" style="background-image:url('${placeholderImage(p.name, p.city)}')"></div>
+          <div>
+            <h4 style="font-size:15.5px;">${escapeHtml(p.name)}</h4>
+            <p class="text-muted" style="font-size:13px;">📍 ${escapeHtml(p.city)} · ${p.rooms.length} room type(s)</p>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="badge badge-${p.status}">${p.status}</span>
+          <button class="btn btn-sm btn-outline" data-edit="${p.id}">Edit</button>
+          <button class="btn btn-sm btn-ghost" data-delete="${p.id}" style="color:var(--danger);">Delete</button>
+        </div>
+      </div>
+    `).join("");
+
+    list.querySelectorAll("[data-edit]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const p = Store.getProperties().find(x => x.id === btn.dataset.edit);
+        editingPropertyId = p.id;
+        document.getElementById("form-title").textContent = "Edit property";
+        document.getElementById("submit-property-btn").textContent = "Save changes";
+        document.getElementById("cancel-edit-btn").style.display = "inline-flex";
+        document.getElementById("p-name").value = p.name;
+        document.getElementById("p-city").value = p.city;
+        document.getElementById("p-address").value = p.address || "";
+        document.getElementById("p-description").value = p.description;
+        document.querySelectorAll(".amenity-check").forEach(c => c.checked = p.amenities.includes(c.value));
+        document.getElementById("rooms-editor").innerHTML = "";
+        roomRowCount = 0;
+        p.rooms.forEach(r => addRoomRow(r));
+        document.querySelector('.dash-nav a[data-panel="add-property"]').click();
+      });
+    });
+    list.querySelectorAll("[data-delete]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        Components.confirmModal("Delete this property?", "This will permanently remove the property and its rooms.", () => {
+          let properties2 = Store.getProperties();
+          properties2 = properties2.filter(x => x.id !== btn.dataset.delete);
+          Store.setProperties(properties2);
+          Components.toast("Property deleted", "info");
+          renderProperties();
+          renderOverview();
+        }, "Delete");
+      });
+    });
+  }
+
+  function renderBookings() {
+    const properties = Store.getProperties().filter(p => p.ownerId === user.id);
+    const bookings = Store.getBookings().filter(b => properties.some(p => p.id === b.propertyId)).sort((a,b) => b.createdAt - a.createdAt);
+    const users = Store.getUsers();
+    const list = document.getElementById("bookings-list");
+
+    if (bookings.length === 0) {
+      list.innerHTML = Components.emptyState("No bookings yet", "Bookings on your properties will appear here.");
+      return;
+    }
+    list.innerHTML = bookings.map(b => {
+      const property = properties.find(p => p.id === b.propertyId);
+      const room = property.rooms.find(r => r.id === b.roomId);
+      const guest = users.find(u => u.id === b.userId);
+      return `
+        <div class="booking-card">
+          <div class="booking-card-img" style="background-image:url('${placeholderImage(property.name, property.city)}')"></div>
+          <div class="booking-card-body">
+            <h4>${escapeHtml(property.name)} — ${escapeHtml(room ? room.type : "")}</h4>
+            <p class="text-muted" style="font-size:13px;">Guest: ${escapeHtml(guest ? guest.name : "Unknown")}</p>
+            <div class="booking-meta">
+              <span>📅 ${formatDate(b.checkIn)} → ${formatDate(b.checkOut)}</span>
+              <span>₹${b.totalPrice.toLocaleString("en-IN")}</span>
+              ${b.sharing ? '<span>🤝 Listed for sharing</span>' : ''}
+            </div>
+          </div>
+          <div class="booking-card-actions">
+            <span class="badge badge-${b.status}">${b.status}</span>
+          </div>
+        </div>`;
+    }).join("");
+  }
+</script>
+</body>
+</html>

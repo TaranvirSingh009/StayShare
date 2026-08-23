@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Access denied — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<div class="center-page">
+  <div class="big-emoji">🚫</div>
+  <h1>Access Denied</h1>
+  <p>You don't have permission to access this page. This area is restricted to a different account role.</p>
+  <div style="display:flex; gap:12px;">
+    <button class="btn btn-primary" id="go-dashboard">Go to my dashboard</button>
+    <a href="../index.html" class="btn btn-outline">Back to home</a>
+  </div>
+</div>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("");
+  Components.renderFooter();
+
+  document.getElementById("go-dashboard").addEventListener("click", () => {
+    const user = Auth.currentUser();
+    if (user) Auth.redirectToDashboard(user.role);
+    else location.href = "login.html";
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StayShare — Book private rooms. Share what you don't need.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="hero">
+  <div class="hero-inner">
+    <span class="eyebrow" style="background:rgba(255,255,255,0.12); color:#fff;">Room booking, reimagined</span>
+    <h1>Book a private room. <em>Share it</em> when you don't need the whole thing.</h1>
+    <p>StayShare lets you book hotel rooms directly, then offer your spare space to other travellers and split the cost — or find someone else's shared room and save on your next trip.</p>
+
+    <div class="search-bar hero-search" id="hero-search-bar">
+      <div class="form-group" style="margin-bottom:0;">
+        <label style="color:rgba(255,255,255,0.85)">Destination</label>
+        <input type="text" class="form-control" id="hero-city" placeholder="Where are you headed?">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label style="color:rgba(255,255,255,0.85)">Check-in</label>
+        <input type="date" class="form-control" id="hero-checkin">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label style="color:rgba(255,255,255,0.85)">Guests</label>
+        <select class="form-control" id="hero-guests">
+          <option value="1">1 guest</option>
+          <option value="2" selected>2 guests</option>
+          <option value="3">3 guests</option>
+          <option value="4">4+ guests</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-lg" id="hero-search-btn">Search</button>
+    </div>
+
+    <div class="hero-stats">
+      <div><strong id="stat-properties">—</strong><span>Live properties</span></div>
+      <div><strong id="stat-cities">—</strong><span>Cities</span></div>
+      <div><strong id="stat-hoteliers">—</strong><span>Hotel partners</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">How it works</span>
+        <h2>Three roles. One simple flow.</h2>
+      </div>
+    </div>
+    <div class="how-it-works">
+      <div class="how-step">
+        <div class="how-num">FOR GUESTS</div>
+        <h3>Book, then share</h3>
+        <p class="text-muted" style="margin-top:8px; font-size:14.5px;">Book a private room directly. If you end up not needing the whole space, list it for sharing and split the cost with another traveller.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-num">FOR HOTELIERS</div>
+        <h3>List your property</h3>
+        <p class="text-muted" style="margin-top:8px; font-size:14.5px;">Add your hotel and rooms from your own dashboard. Every listing is reviewed before it goes live, so guests always book with confidence.</p>
+      </div>
+      <div class="how-step">
+        <div class="how-num">FOR THE PLATFORM</div>
+        <h3>Verified by SuperAdmin</h3>
+        <p class="text-muted" style="margin-top:8px; font-size:14.5px;">A SuperAdmin approves hoteliers and properties, and keeps an eye on bookings and shared-room activity platform-wide.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--sand-deep); padding-top:64px;">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Featured stays</span>
+        <h2>Popular right now</h2>
+      </div>
+      <a href="pages/search.html" class="btn btn-outline">Browse all →</a>
+    </div>
+    <div class="property-grid" id="featured-properties">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="js/store.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/components.js"></script>
+<script>
+  Components.renderNavbar("home");
+  Components.renderFooter();
+
+  const properties = Store.getProperties().filter(p => p.status === "approved");
+  document.getElementById("stat-properties").textContent = properties.length;
+  document.getElementById("stat-cities").textContent = new Set(properties.map(p => p.city)).size;
+  document.getElementById("stat-hoteliers").textContent = new Set(Store.getUsers().filter(u => u.role === "hotelier" && u.status === "active").map(u => u.id)).size;
+
+  const featuredEl = document.getElementById("featured-properties");
+  if (properties.length === 0) {
+    featuredEl.innerHTML = Components.emptyState("No properties live yet", "Check back soon — hoteliers are adding new stays.");
+  } else {
+    featuredEl.innerHTML = properties.slice(0, 4).map(p => Components.propertyCard(p)).join("");
+  }
+
+  document.getElementById("hero-search-btn").addEventListener("click", () => {
+    const city = document.getElementById("hero-city").value.trim();
+    const params = new URLSearchParams();
+    if (city) params.set("city", city);
+    location.href = "pages/search.html" + (params.toString() ? "?" + params.toString() : "");
+  });
+  document.getElementById("hero-city").addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("hero-search-btn").click();
+  });
+</script>
+</body>
+</html>

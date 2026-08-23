@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperAdmin Dashboard — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section">
+  <div class="container">
+    <div class="dashboard-shell">
+      <aside class="dash-sidebar">
+        <div class="dash-sidebar-header">
+          <div class="dash-name" id="side-name">—</div>
+          <div class="dash-email" id="side-email">—</div>
+        </div>
+        <nav class="dash-nav">
+          <a href="#" data-panel="overview" class="active">📊 Overview</a>
+          <a href="#" data-panel="users">👤 Users</a>
+          <a href="#" data-panel="hoteliers">🏨 Hoteliers</a>
+          <a href="#" data-panel="properties">🏢 Properties</a>
+          <a href="#" data-panel="bookings">📖 Bookings</a>
+          <a href="#" data-panel="settings">⚙ Settings</a>
+          <button class="dash-logout" id="logout-btn">↪ Log out</button>
+        </nav>
+      </aside>
+
+      <main class="dash-main">
+        <h1>SuperAdmin Control Panel</h1>
+        <p class="text-muted" style="margin-bottom:24px;">Approve hoteliers and properties, and oversee the platform.</p>
+
+        <div class="dash-panel active" id="panel-overview">
+          <div class="stat-grid">
+            <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value" id="stat-users">0</div></div>
+            <div class="stat-card"><div class="stat-label">Hotel Partners</div><div class="stat-value" id="stat-hoteliers">0</div></div>
+            <div class="stat-card"><div class="stat-label">Properties</div><div class="stat-value" id="stat-properties">0</div></div>
+            <div class="stat-card"><div class="stat-label">Pending Approval</div><div class="stat-value" id="stat-pending">0</div></div>
+            <div class="stat-card"><div class="stat-label">Bookings</div><div class="stat-value" id="stat-bookings">0</div></div>
+            <div class="stat-card"><div class="stat-label">Shared-Room Requests</div><div class="stat-value" id="stat-sharing">0</div></div>
+          </div>
+        </div>
+
+        <div class="dash-panel" id="panel-users">
+          <p class="text-muted" style="margin-bottom:14px;">Guest accounts on the platform.</p>
+          <div class="table-wrap"><table class="data-table" id="users-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="dash-panel" id="panel-hoteliers">
+          <p class="text-muted" style="margin-bottom:14px;">Approve or reject hotelier applications. Suspend active partners if needed.</p>
+          <div class="table-wrap"><table class="data-table" id="hoteliers-table">
+            <thead><tr><th>Name</th><th>Company</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="dash-panel" id="panel-properties">
+          <p class="text-muted" style="margin-bottom:14px;">Review new and edited listings before they go live.</p>
+          <div class="dash-list" id="properties-list"></div>
+        </div>
+
+        <div class="dash-panel" id="panel-bookings">
+          <div class="table-wrap"><table class="data-table" id="bookings-table">
+            <thead><tr><th>Guest</th><th>Property</th><th>Dates</th><th>Total</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table></div>
+        </div>
+
+        <div class="dash-panel" id="panel-settings">
+          <div class="card" style="max-width:480px;">
+            <h3 style="font-size:16px; margin-bottom:8px;">Demo data</h3>
+            <p class="text-muted" style="font-size:13.5px; margin-bottom:16px;">Reset all StayShare data in this browser back to the original seed data. This clears every account, property, booking and request you've created.</p>
+            <button class="btn btn-danger" id="reset-btn">Reset demo data</button>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("");
+  Components.renderFooter();
+  const admin = Auth.requireRole("superAdmin");
+
+  if (admin) {
+    document.getElementById("side-name").textContent = admin.name;
+    document.getElementById("side-email").textContent = admin.email;
+
+    setupTabs();
+    renderOverview();
+    renderUsers();
+    renderHoteliers();
+    renderProperties();
+    renderBookings();
+
+    document.getElementById("logout-btn").addEventListener("click", () => {
+      Auth.logout();
+      location.href = "../index.html";
+    });
+    document.getElementById("reset-btn").addEventListener("click", () => {
+      Components.confirmModal("Reset all demo data?", "This clears every account, property and booking in this browser and restores the original seed data.", () => {
+        Store.resetAll();
+        Components.toast("Demo data reset", "success");
+        setTimeout(() => location.href = "../index.html", 600);
+      }, "Reset everything");
+    });
+  }
+
+  function setupTabs() {
+    const links = document.querySelectorAll(".dash-nav a[data-panel]");
+    links.forEach(link => {
+      link.addEventListener("click", e => {
+        e.preventDefault();
+        links.forEach(l => l.classList.remove("active"));
+        link.classList.add("active");
+        document.querySelectorAll(".dash-panel").forEach(p => p.classList.remove("active"));
+        document.getElementById("panel-" + link.dataset.panel).classList.add("active");
+      });
+    });
+  }
+
+  function renderOverview() {
+    const users = Store.getUsers();
+    const properties = Store.getProperties();
+    const bookings = Store.getBookings();
+    const requests = Store.getSharingRequests();
+
+    document.getElementById("stat-users").textContent = users.filter(u => u.role === "user").length;
+    document.getElementById("stat-hoteliers").textContent = users.filter(u => u.role === "hotelier" && u.status === "active").length;
+    document.getElementById("stat-properties").textContent = properties.filter(p => p.status === "approved").length;
+    document.getElementById("stat-pending").textContent =
+      properties.filter(p => p.status === "pending").length + users.filter(u => u.role === "hotelier" && u.status === "pending").length;
+    document.getElementById("stat-bookings").textContent = bookings.length;
+    document.getElementById("stat-sharing").textContent = requests.length;
+  }
+
+  function renderUsers() {
+    const users = Store.getUsers().filter(u => u.role === "user");
+    const tbody = document.querySelector("#users-table tbody");
+    if (users.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5">${Components.emptyState("No guest accounts yet")}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td>${escapeHtml(u.name)}</td>
+        <td>${escapeHtml(u.email)}</td>
+        <td><span class="badge badge-${u.status}">${u.status}</span></td>
+        <td>${formatDate(new Date(u.createdAt).toISOString())}</td>
+        <td>
+          ${u.status === "active"
+            ? `<button class="btn btn-sm btn-ghost" data-suspend="${u.id}" style="color:var(--danger);">Suspend</button>`
+            : `<button class="btn btn-sm btn-outline" data-activate="${u.id}">Reactivate</button>`}
+        </td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("[data-suspend]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.suspend, "suspended", renderUsers)));
+    tbody.querySelectorAll("[data-activate]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.activate, "active", renderUsers)));
+  }
+
+  function renderHoteliers() {
+    const hoteliers = Store.getUsers().filter(u => u.role === "hotelier");
+    const tbody = document.querySelector("#hoteliers-table tbody");
+    if (hoteliers.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5">${Components.emptyState("No hotelier applications yet")}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = hoteliers.map(h => `
+      <tr>
+        <td>${escapeHtml(h.name)}</td>
+        <td>${escapeHtml(h.company || "—")}</td>
+        <td>${escapeHtml(h.email)}</td>
+        <td><span class="badge badge-${h.status}">${h.status}</span></td>
+        <td>
+          ${h.status === "pending" ? `
+            <button class="btn btn-sm btn-success" data-approve="${h.id}">Approve</button>
+            <button class="btn btn-sm btn-danger" data-reject="${h.id}">Reject</button>
+          ` : h.status === "active" ? `
+            <button class="btn btn-sm btn-ghost" data-suspend="${h.id}" style="color:var(--danger);">Suspend</button>
+          ` : `
+            <button class="btn btn-sm btn-outline" data-activate="${h.id}">Reactivate</button>
+          `}
+        </td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.approve, "active", () => { renderHoteliers(); renderOverview(); })));
+    tbody.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.reject, "rejected", () => { renderHoteliers(); renderOverview(); })));
+    tbody.querySelectorAll("[data-suspend]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.suspend, "suspended", () => { renderHoteliers(); renderOverview(); })));
+    tbody.querySelectorAll("[data-activate]").forEach(btn => btn.addEventListener("click", () => setUserStatus(btn.dataset.activate, "active", () => { renderHoteliers(); renderOverview(); })));
+  }
+
+  function setUserStatus(userId, status, cb) {
+    const users = Store.getUsers();
+    const u = users.find(x => x.id === userId);
+    u.status = status;
+    Store.setUsers(users);
+    Components.toast(`${u.name}'s account is now ${status}`, status === "active" ? "success" : "info");
+    if (cb) cb();
+  }
+
+  function renderProperties() {
+    const properties = Store.getProperties().sort((a,b) => (a.status === "pending" ? -1 : 1) - (b.status === "pending" ? -1 : 1));
+    const users = Store.getUsers();
+    const list = document.getElementById("properties-list");
+    if (properties.length === 0) {
+      list.innerHTML = Components.emptyState("No properties submitted yet");
+      return;
+    }
+    list.innerHTML = properties.map(p => {
+      const owner = users.find(u => u.id === p.ownerId);
+      return `
+        <div class="card-flat" style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+          <div style="display:flex; gap:14px; align-items:center;">
+            <div class="booking-card-img" style="background-image:url('${placeholderImage(p.name, p.city)}')"></div>
+            <div>
+              <h4 style="font-size:15.5px;">${escapeHtml(p.name)}</h4>
+              <p class="text-muted" style="font-size:13px;">📍 ${escapeHtml(p.city)} · Owner: ${escapeHtml(owner ? owner.name : "Unknown")} · ${p.rooms.length} room type(s)</p>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="badge badge-${p.status}">${p.status}</span>
+            ${p.status === "pending" ? `
+              <button class="btn btn-sm btn-success" data-approve="${p.id}">Approve</button>
+              <button class="btn btn-sm btn-danger" data-reject="${p.id}">Reject</button>
+            ` : `<button class="btn btn-sm btn-ghost" data-remove="${p.id}" style="color:var(--danger);">Remove</button>`}
+          </div>
+        </div>`;
+    }).join("");
+
+    list.querySelectorAll("[data-approve]").forEach(btn => btn.addEventListener("click", () => setPropertyStatus(btn.dataset.approve, "approved")));
+    list.querySelectorAll("[data-reject]").forEach(btn => btn.addEventListener("click", () => setPropertyStatus(btn.dataset.reject, "rejected")));
+    list.querySelectorAll("[data-remove]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        Components.confirmModal("Remove this property?", "It will be taken off the platform immediately.", () => {
+          let properties2 = Store.getProperties().filter(x => x.id !== btn.dataset.remove);
+          Store.setProperties(properties2);
+          Components.toast("Property removed", "info");
+          renderProperties();
+          renderOverview();
+        }, "Remove");
+      });
+    });
+  }
+
+  function setPropertyStatus(id, status) {
+    const properties = Store.getProperties();
+    const p = properties.find(x => x.id === id);
+    p.status = status;
+    Store.setProperties(properties);
+    Components.toast(`"${p.name}" ${status}`, status === "approved" ? "success" : "info");
+    renderProperties();
+    renderOverview();
+  }
+
+  function renderBookings() {
+    const bookings = Store.getBookings().sort((a,b) => b.createdAt - a.createdAt);
+    const users = Store.getUsers();
+    const properties = Store.getProperties();
+    const tbody = document.querySelector("#bookings-table tbody");
+    if (bookings.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5">${Components.emptyState("No bookings yet")}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = bookings.map(b => {
+      const guest = users.find(u => u.id === b.userId);
+      const property = properties.find(p => p.id === b.propertyId);
+      return `
+        <tr>
+          <td>${escapeHtml(guest ? guest.name : "Unknown")}</td>
+          <td>${escapeHtml(property ? property.name : "Removed")}</td>
+          <td>${formatDate(b.checkIn)} → ${formatDate(b.checkOut)}</td>
+          <td>₹${b.totalPrice.toLocaleString("en-IN")}</td>
+          <td><span class="badge badge-${b.status}">${b.status}</span></td>
+        </tr>`;
+    }).join("");
+  }
+</script>
+</body>
+</html>

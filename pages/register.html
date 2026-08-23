@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section" style="padding-top:56px;">
+  <div class="container" style="max-width:480px;">
+    <div class="form-card">
+      <span class="eyebrow">Join StayShare</span>
+      <h1 style="font-size:26px; margin-bottom:6px;">Create your account</h1>
+      <p class="text-muted" style="margin-bottom:22px; font-size:14px;">Choose how you'll use StayShare.</p>
+
+      <div class="auth-role-toggle">
+        <div class="role-pill active" data-role="user">🧳 I'm a guest</div>
+        <div class="role-pill" data-role="hotelier">🏨 I list a hotel</div>
+      </div>
+
+      <div class="alert alert-info" id="hotelier-note" style="display:none;">
+        Hotelier accounts require SuperAdmin approval before you can log in and add properties.
+      </div>
+      <div class="alert alert-danger" id="register-error" style="display:none;"></div>
+
+      <form id="register-form">
+        <div class="form-group">
+          <label for="name">Full name</label>
+          <input type="text" id="name" class="form-control" placeholder="Your name" required>
+        </div>
+        <div class="form-group" id="company-group" style="display:none;">
+          <label for="company">Hotel / company name</label>
+          <input type="text" id="company" class="form-control" placeholder="e.g. Sharma Hospitality Group">
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" class="form-control" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" class="form-control" placeholder="Create a password" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" id="submit-btn">Create account</button>
+      </form>
+
+      <p style="margin-top:20px; font-size:14px; text-align:center; color:var(--muted);">
+        Already have an account? <a href="login.html" style="color:var(--coral-dark); font-weight:600;">Log in</a>
+      </p>
+    </div>
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("");
+  Components.renderFooter();
+
+  if (Auth.isLoggedIn()) {
+    Auth.redirectToDashboard(Auth.currentUser().role);
+  }
+
+  let selectedRole = "user";
+  const pills = document.querySelectorAll(".role-pill");
+  const companyGroup = document.getElementById("company-group");
+  const hotelierNote = document.getElementById("hotelier-note");
+  const submitBtn = document.getElementById("submit-btn");
+
+  pills.forEach(pill => {
+    pill.addEventListener("click", () => {
+      pills.forEach(p => p.classList.remove("active"));
+      pill.classList.add("active");
+      selectedRole = pill.dataset.role;
+      const isHotelier = selectedRole === "hotelier";
+      companyGroup.style.display = isHotelier ? "block" : "none";
+      hotelierNote.style.display = isHotelier ? "flex" : "none";
+      submitBtn.textContent = isHotelier ? "Submit for approval" : "Create account";
+    });
+  });
+
+  const form = document.getElementById("register-form");
+  const errorBox = document.getElementById("register-error");
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    errorBox.style.display = "none";
+
+    const name = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const company = document.getElementById("company").value.trim();
+
+    const result = Auth.register({ name, email, password, role: selectedRole, company });
+    if (!result.ok) {
+      errorBox.textContent = result.message;
+      errorBox.style.display = "flex";
+      return;
+    }
+
+    if (selectedRole === "hotelier") {
+      Components.toast("Application submitted! Awaiting SuperAdmin approval.", "success");
+      setTimeout(() => location.href = "login.html", 900);
+    } else {
+      Auth.login(email, password);
+      Components.toast("Account created — welcome to StayShare!", "success");
+      setTimeout(() => Auth.redirectToDashboard("user"), 600);
+    }
+  });
+</script>
+</body>
+</html>

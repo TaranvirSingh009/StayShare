@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search stays — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section" style="padding-bottom:24px;">
+  <div class="container">
+    <span class="eyebrow" id="page-eyebrow">Search</span>
+    <h1 style="font-size:28px; margin-bottom:18px;" id="page-title">Find your next stay</h1>
+
+    <div class="search-bar">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Destination</label>
+        <input type="text" class="form-control" id="filter-city" placeholder="City">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Min price</label>
+        <input type="number" class="form-control" id="filter-min" placeholder="₹0">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>Max price</label>
+        <input type="number" class="form-control" id="filter-max" placeholder="Any">
+      </div>
+      <button class="btn btn-primary btn-lg" id="apply-filters">Search</button>
+    </div>
+
+    <div class="filters-bar" id="city-chips"></div>
+    <p class="results-count" id="results-count"></p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="property-grid" id="results-grid"></div>
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar(qs("shared") ? "shared" : "search");
+  Components.renderFooter();
+
+  const isSharedMode = qs("shared") === "1";
+  document.getElementById("page-eyebrow").textContent = isSharedMode ? "Shared rooms" : "Search";
+  document.getElementById("page-title").textContent = isSharedMode
+    ? "Rooms other travellers are sharing"
+    : "Find your next stay";
+
+  let activeCity = qs("city") || "";
+  document.getElementById("filter-city").value = activeCity;
+
+  const allProperties = Store.getProperties().filter(p => p.status === "approved");
+  const cities = [...new Set(allProperties.map(p => p.city))];
+
+  function renderCityChips() {
+    const el = document.getElementById("city-chips");
+    el.innerHTML = `<div class="filter-chip ${activeCity === '' ? 'active' : ''}" data-city="">All cities</div>` +
+      cities.map(c => `<div class="filter-chip ${activeCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join("");
+    el.querySelectorAll(".filter-chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        activeCity = chip.dataset.city;
+        document.getElementById("filter-city").value = activeCity;
+        renderResults();
+        renderCityChips();
+      });
+    });
+  }
+
+  function getSharedListings() {
+    // Bookings marked for sharing, joined with property + room + owner info
+    const bookings = Store.getBookings().filter(b => b.sharing && b.status !== "cancelled");
+    const properties = Store.getProperties();
+    const users = Store.getUsers();
+    return bookings.map(b => {
+      const property = properties.find(p => p.id === b.propertyId);
+      const room = property ? property.rooms.find(r => r.id === b.roomId) : null;
+      const owner = users.find(u => u.id === b.userId);
+      return { booking: b, property, room, owner };
+    }).filter(x => x.property);
+  }
+
+  function renderResults() {
+    const grid = document.getElementById("results-grid");
+    const min = parseFloat(document.getElementById("filter-min").value) || 0;
+    const max = parseFloat(document.getElementById("filter-max").value) || Infinity;
+
+    if (isSharedMode) {
+      let listings = getSharedListings();
+      if (activeCity) listings = listings.filter(l => l.property.city.toLowerCase() === activeCity.toLowerCase());
+      listings = listings.filter(l => {
+        const price = l.booking.totalPrice / 2;
+        return price >= min && price <= max;
+      });
+      document.getElementById("results-count").textContent = `${listings.length} shared room${listings.length !== 1 ? "s" : ""} found`;
+
+      if (listings.length === 0) {
+        grid.innerHTML = Components.emptyState("No shared rooms right now", "When a guest lists their booked room for sharing, it'll show up here.");
+        return;
+      }
+      const root = Auth.rootPath();
+      grid.innerHTML = listings.map(l => `
+        <div class="property-card" style="cursor:default;">
+          <div class="property-card-img" style="background-image:url('${placeholderImage(l.property.name, l.property.city)}')">
+            <span class="property-card-badge">Shared</span>
+          </div>
+          <div class="property-card-body">
+            <h3>${escapeHtml(l.property.name)}</h3>
+            <p class="property-card-city">📍 ${escapeHtml(l.property.city)} · ${escapeHtml(l.room ? l.room.type : "Room")}</p>
+            <p class="text-muted" style="font-size:12.5px; margin-bottom:10px;">Host: ${escapeHtml(l.owner ? l.owner.name : "Guest")} · ${formatDate(l.booking.checkIn)} → ${formatDate(l.booking.checkOut)}</p>
+            <div class="property-card-footer">
+              <span class="property-card-price">₹${Math.round(l.booking.totalPrice / 2).toLocaleString("en-IN")}<small>/your share</small></span>
+              <a href="${root}pages/property.html?id=${l.property.id}&sharedBooking=${l.booking.id}" class="btn btn-sm btn-primary">Request</a>
+            </div>
+          </div>
+        </div>
+      `).join("");
+      return;
+    }
+
+    let results = allProperties;
+    if (activeCity) results = results.filter(p => p.city.toLowerCase() === activeCity.toLowerCase());
+    results = results.filter(p => {
+      const minRoomPrice = Math.min(...p.rooms.map(r => r.price));
+      return minRoomPrice >= min && minRoomPrice <= max;
+    });
+
+    document.getElementById("results-count").textContent = `${results.length} propert${results.length !== 1 ? "ies" : "y"} found`;
+
+    if (results.length === 0) {
+      grid.innerHTML = Components.emptyState("No properties match your search", "Try a different city or widen your price range.");
+      return;
+    }
+    grid.innerHTML = results.map(p => Components.propertyCard(p)).join("");
+  }
+
+  document.getElementById("apply-filters").addEventListener("click", () => {
+    activeCity = document.getElementById("filter-city").value.trim();
+    renderResults();
+    renderCityChips();
+  });
+
+  renderCityChips();
+  renderResults();
+</script>
+</body>
+</html>

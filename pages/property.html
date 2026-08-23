@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Property — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section" id="page-content">
+  <div class="container" id="loading-wrap">
+    <!-- loading / content injected by JS -->
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("search");
+  Components.renderFooter();
+
+  const propertyId = qs("id");
+  const sharedBookingId = qs("sharedBooking");
+  const wrap = document.getElementById("loading-wrap");
+  wrap.innerHTML = Components.loadingState("Loading property...");
+
+  const property = Store.getProperties().find(p => p.id === propertyId);
+
+  if (!property || property.status !== "approved") {
+    wrap.innerHTML = Components.emptyState("Property not found", "It may have been removed or isn't approved yet.") +
+      `<div style="text-align:center;"><a href="search.html" class="btn btn-outline">← Back to search</a></div>`;
+  } else if (sharedBookingId) {
+    renderSharedRequestView();
+  } else {
+    renderPropertyView();
+  }
+
+  function renderPropertyView() {
+    let selectedRoomId = property.rooms[0] ? property.rooms[0].id : null;
+    const currentUser = Auth.currentUser();
+    const wishlist = Store.getWishlist();
+    let isWishlisted = currentUser && wishlist.some(w => w.userId === currentUser.id && w.propertyId === property.id);
+
+    wrap.innerHTML = `
+      <div class="property-hero-img" style="background-image:url('${placeholderImage(property.name, property.city)}')"></div>
+      <div class="property-detail-grid">
+        <div>
+          <span class="eyebrow">${escapeHtml(property.city)}</span>
+          <h1 style="font-size:30px;">${escapeHtml(property.name)}</h1>
+          <p class="text-muted" style="margin:6px 0 4px;">📍 ${escapeHtml(property.address || property.city)} · ★ ${property.rating}</p>
+          <p style="margin-top:18px; line-height:1.7;">${escapeHtml(property.description)}</p>
+
+          <h3 style="font-size:17px; margin-top:28px; margin-bottom:4px;">Amenities</h3>
+          <div class="amenity-list">
+            ${property.amenities.map(a => `<span class="amenity-pill">${escapeHtml(a)}</span>`).join("")}
+          </div>
+
+          <h3 style="font-size:17px; margin-top:32px; margin-bottom:14px;">Choose a room</h3>
+          <div id="room-options">
+            ${property.rooms.map(r => `
+              <div class="room-option ${r.id === selectedRoomId ? 'selected' : ''}" data-room="${r.id}">
+                <div>
+                  <h4>${escapeHtml(r.type)}</h4>
+                  <p class="text-muted" style="font-size:13px;">Sleeps ${r.capacity} · ${r.available ? '<span style="color:var(--success)">Available</span>' : '<span style="color:var(--danger)">Unavailable</span>'}</p>
+                </div>
+                <div class="room-price">₹${r.price.toLocaleString("en-IN")}<span style="font-weight:400; font-size:12px; color:var(--muted);">/night</span></div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <div class="sticky-booking-box">
+          <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <h3 style="font-size:18px;">Book this stay</h3>
+              <button class="btn btn-sm ${isWishlisted ? 'btn-secondary' : 'btn-outline'}" id="wishlist-btn">${isWishlisted ? '♥ Saved' : '♡ Save'}</button>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Check-in</label>
+                <input type="date" class="form-control" id="checkin">
+              </div>
+              <div class="form-group">
+                <label>Check-out</label>
+                <input type="date" class="form-control" id="checkout">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Guests</label>
+              <select class="form-control" id="guests">
+                <option value="1">1 guest</option>
+                <option value="2" selected>2 guests</option>
+                <option value="3">3 guests</option>
+                <option value="4">4 guests</option>
+              </select>
+            </div>
+            <div class="form-error" id="booking-error"></div>
+            <div class="price-breakdown" id="price-preview" style="margin-bottom:16px;"></div>
+            <button class="btn btn-primary btn-block btn-lg" id="book-btn">Book Now</button>
+            <p class="form-hint" style="text-align:center; margin-top:10px;">You won't be charged yet in this demo.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    function updatePreview() {
+      const room = property.rooms.find(r => r.id === selectedRoomId);
+      const checkin = document.getElementById("checkin").value;
+      const checkout = document.getElementById("checkout").value;
+      const nights = (checkin && checkout) ? Math.max(0, Math.round((new Date(checkout) - new Date(checkin)) / 86400000)) : 0;
+      const subtotal = room ? room.price * nights : 0;
+      const fee = Math.round(subtotal * 0.05);
+      const total = subtotal + fee;
+      document.getElementById("price-preview").innerHTML = `
+        <div class="price-breakdown-row"><span>₹${room ? room.price.toLocaleString("en-IN") : 0} × ${nights} night${nights !== 1 ? "s" : ""}</span><span>₹${subtotal.toLocaleString("en-IN")}</span></div>
+        <div class="price-breakdown-row"><span>Service fee</span><span>₹${fee.toLocaleString("en-IN")}</span></div>
+        <div class="price-breakdown-row total"><span>Total</span><span>₹${total.toLocaleString("en-IN")}</span></div>
+      `;
+      return { room, checkin, checkout, nights, total };
+    }
+
+    document.querySelectorAll(".room-option").forEach(opt => {
+      opt.addEventListener("click", () => {
+        document.querySelectorAll(".room-option").forEach(o => o.classList.remove("selected"));
+        opt.classList.add("selected");
+        selectedRoomId = opt.dataset.room;
+        updatePreview();
+      });
+    });
+    document.getElementById("checkin").addEventListener("change", updatePreview);
+    document.getElementById("checkout").addEventListener("change", updatePreview);
+    updatePreview();
+
+    document.getElementById("wishlist-btn").addEventListener("click", () => {
+      if (!currentUser) { location.href = "login.html"; return; }
+      if (currentUser.role !== "user") { Components.toast("Only guest accounts can save properties.", "info"); return; }
+      let list = Store.getWishlist();
+      if (isWishlisted) {
+        list = list.filter(w => !(w.userId === currentUser.id && w.propertyId === property.id));
+        Components.toast("Removed from wishlist", "info");
+      } else {
+        list.push({ userId: currentUser.id, propertyId: property.id, addedAt: Date.now() });
+        Components.toast("Added to wishlist", "success");
+      }
+      Store.setWishlist(list);
+      isWishlisted = !isWishlisted;
+      const btn = document.getElementById("wishlist-btn");
+      btn.textContent = isWishlisted ? "♥ Saved" : "♡ Save";
+      btn.className = "btn btn-sm " + (isWishlisted ? "btn-secondary" : "btn-outline");
+    });
+
+    document.getElementById("book-btn").addEventListener("click", () => {
+      const errorEl = document.getElementById("booking-error");
+      errorEl.classList.remove("show");
+
+      if (!currentUser) { location.href = "login.html"; return; }
+      if (currentUser.role !== "user") {
+        errorEl.textContent = "Only guest accounts can book rooms.";
+        errorEl.classList.add("show");
+        return;
+      }
+      const { room, checkin, checkout, nights, total } = updatePreview();
+      if (!checkin || !checkout || nights <= 0) {
+        errorEl.textContent = "Please choose valid check-in and check-out dates.";
+        errorEl.classList.add("show");
+        return;
+      }
+      if (!room.available) {
+        errorEl.textContent = "This room is currently unavailable.";
+        errorEl.classList.add("show");
+        return;
+      }
+
+      const bookings = Store.getBookings();
+      const newBooking = {
+        id: Store.uid("booking"),
+        userId: currentUser.id,
+        propertyId: property.id,
+        roomId: room.id,
+        checkIn: checkin,
+        checkOut: checkout,
+        guests: parseInt(document.getElementById("guests").value, 10),
+        totalPrice: total,
+        status: "upcoming",
+        sharing: false,
+        createdAt: Date.now()
+      };
+      bookings.push(newBooking);
+      Store.setBookings(bookings);
+      Components.toast("Booking confirmed!", "success");
+      setTimeout(() => location.href = "booking.html?id=" + newBooking.id, 500);
+    });
+  }
+
+  function renderSharedRequestView() {
+    const currentUser = Auth.currentUser();
+    const booking = Store.getBookings().find(b => b.id === sharedBookingId && b.sharing);
+    const room = booking ? property.rooms.find(r => r.id === booking.roomId) : null;
+    const owner = booking ? Store.getUsers().find(u => u.id === booking.userId) : null;
+
+    if (!booking || !room || !owner) {
+      wrap.innerHTML = Components.emptyState("This shared listing is no longer available.") +
+        `<div style="text-align:center;"><a href="search.html?shared=1" class="btn btn-outline">← Back to shared rooms</a></div>`;
+      return;
+    }
+
+    const already = Store.getSharingRequests().find(r => r.bookingId === booking.id && currentUser && r.requesterUserId === currentUser.id);
+
+    wrap.innerHTML = `
+      <div class="property-hero-img" style="background-image:url('${placeholderImage(property.name, property.city)}')"></div>
+      <div class="property-detail-grid">
+        <div>
+          <span class="eyebrow">Shared room · ${escapeHtml(property.city)}</span>
+          <h1 style="font-size:28px;">${escapeHtml(property.name)}</h1>
+          <p class="text-muted" style="margin:6px 0 18px;">📍 ${escapeHtml(property.address || property.city)}</p>
+          <div class="card-flat">
+            <p><strong>Room:</strong> ${escapeHtml(room.type)} (sleeps ${room.capacity})</p>
+            <p><strong>Dates:</strong> ${formatDate(booking.checkIn)} → ${formatDate(booking.checkOut)}</p>
+            <p><strong>Host:</strong> ${escapeHtml(owner.name)}</p>
+          </div>
+          <p style="margin-top:18px; line-height:1.7;">${escapeHtml(property.description)}</p>
+        </div>
+        <div class="sticky-booking-box">
+          <div class="card">
+            <h3 style="font-size:18px; margin-bottom:14px;">Request to share</h3>
+            <div class="price-breakdown" style="margin-bottom:16px;">
+              <div class="price-breakdown-row"><span>Total room cost</span><span>₹${booking.totalPrice.toLocaleString("en-IN")}</span></div>
+              <div class="price-breakdown-row total"><span>Your share (50%)</span><span>₹${Math.round(booking.totalPrice / 2).toLocaleString("en-IN")}</span></div>
+            </div>
+            <div class="form-group">
+              <label>Message to host (optional)</label>
+              <textarea class="form-control" id="request-message" placeholder="Introduce yourself..."></textarea>
+            </div>
+            <div class="form-error" id="request-error"></div>
+            <button class="btn btn-primary btn-block btn-lg" id="request-btn">Send Request</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const btn = document.getElementById("request-btn");
+    if (already) {
+      btn.disabled = true;
+      btn.textContent = "Request " + already.status;
+    }
+    if (currentUser && currentUser.id === owner.id) {
+      btn.disabled = true;
+      btn.textContent = "This is your own listing";
+    }
+
+    btn.addEventListener("click", () => {
+      if (!currentUser) { location.href = "login.html"; return; }
+      const errorEl = document.getElementById("request-error");
+      if (currentUser.role !== "user") {
+        errorEl.textContent = "Only guest accounts can request to share a room.";
+        errorEl.classList.add("show");
+        return;
+      }
+      const requests = Store.getSharingRequests();
+      requests.push({
+        id: Store.uid("share"),
+        bookingId: booking.id,
+        ownerUserId: owner.id,
+        requesterUserId: currentUser.id,
+        message: document.getElementById("request-message").value.trim(),
+        status: "pending",
+        createdAt: Date.now()
+      });
+      Store.setSharingRequests(requests);
+      Components.toast("Request sent to host!", "success");
+      btn.disabled = true;
+      btn.textContent = "Request pending";
+    });
+  }
+</script>
+</body>
+</html>

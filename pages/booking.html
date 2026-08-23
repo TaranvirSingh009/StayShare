@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Booking confirmed — StayShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<div id="app-navbar"></div>
+
+<section class="section">
+  <div class="container" style="max-width:640px;" id="content">
+    <!-- injected -->
+  </div>
+</section>
+
+<div id="app-footer"></div>
+
+<script src="../js/store.js"></script>
+<script src="../js/auth.js"></script>
+<script src="../js/components.js"></script>
+<script>
+  Components.renderNavbar("");
+  Components.renderFooter();
+  const user = Auth.requireRole("user");
+
+  const content = document.getElementById("content");
+  const bookingId = qs("id");
+  render();
+
+  function render() {
+    const booking = Store.getBookings().find(b => b.id === bookingId && b.userId === user.id);
+    if (!booking) {
+      content.innerHTML = Components.emptyState("Booking not found") +
+        `<div style="text-align:center;"><a href="user-dashboard.html" class="btn btn-outline">Go to dashboard</a></div>`;
+      return;
+    }
+    const property = Store.getProperties().find(p => p.id === booking.propertyId);
+    const room = property.rooms.find(r => r.id === booking.roomId);
+    const nights = Math.max(1, Math.round((new Date(booking.checkOut) - new Date(booking.checkIn)) / 86400000));
+
+    content.innerHTML = `
+      <div style="text-align:center; margin-bottom:28px;">
+        <div style="font-size:44px;">✅</div>
+        <h1 style="font-size:26px; margin-top:10px;">Booking confirmed</h1>
+        <p class="text-muted">A confirmation has been added to your dashboard.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; gap:16px; align-items:center; margin-bottom:18px;">
+          <div class="booking-card-img" style="background-image:url('${placeholderImage(property.name, property.city)}')"></div>
+          <div>
+            <h3 style="font-size:18px;">${escapeHtml(property.name)}</h3>
+            <p class="text-muted" style="font-size:13.5px;">📍 ${escapeHtml(property.city)} · ${escapeHtml(room.type)}</p>
+          </div>
+        </div>
+        <hr class="divider">
+        <div class="price-breakdown-row"><span>Check-in</span><span>${formatDate(booking.checkIn)}</span></div>
+        <div class="price-breakdown-row"><span>Check-out</span><span>${formatDate(booking.checkOut)}</span></div>
+        <div class="price-breakdown-row"><span>Guests</span><span>${booking.guests}</span></div>
+        <div class="price-breakdown-row"><span>Nights</span><span>${nights}</span></div>
+        <div class="price-breakdown-row total"><span>Total paid</span><span>₹${booking.totalPrice.toLocaleString("en-IN")}</span></div>
+        <hr class="divider">
+        <span class="badge badge-${booking.status}">${booking.status}</span>
+      </div>
+
+      <div class="card" style="margin-top:20px;">
+        <h3 style="font-size:16px; margin-bottom:6px;">Not using the whole room?</h3>
+        <p class="text-muted" style="font-size:13.5px; margin-bottom:14px;">List this booking for sharing and split the cost with another traveller.</p>
+        ${booking.sharing
+          ? `<span class="badge badge-active">Listed for sharing</span>`
+          : `<button class="btn btn-secondary" id="share-btn">Put this room up for sharing</button>`
+        }
+      </div>
+
+      <div style="text-align:center; margin-top:24px;">
+        <a href="user-dashboard.html" class="btn btn-outline">Go to my dashboard</a>
+      </div>
+    `;
+
+    const shareBtn = document.getElementById("share-btn");
+    if (shareBtn) {
+      shareBtn.addEventListener("click", () => {
+        const bookings = Store.getBookings();
+        const b = bookings.find(x => x.id === booking.id);
+        b.sharing = true;
+        Store.setBookings(bookings);
+        Components.toast("Room listed for sharing!", "success");
+        render();
+      });
+    }
+  }
+</script>
+</body>
+</html>
